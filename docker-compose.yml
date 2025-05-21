@@ -1,0 +1,19 @@
+   version: "3.8"
+
+   services:
+     postgres:
+       image: postgres:16-alpine
+       container_name: nuxt-jukebox-db
+       environment:
+         POSTGRES_USER: jukebox
+         POSTGRES_PASSWORD: jukebox123
+         POSTGRES_DB: jukebox
+         POSTGRES_HOST_AUTH_METHOD: trust
+       ports:
+         - "5433:5432"
+       volumes:
+         - postgres_data:/var/lib/postgresql/data
+       restart: unless-stopped
+
+   volumes:
+     postgres_data:
