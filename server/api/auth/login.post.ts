@@ -50,7 +50,6 @@ export default defineEventHandler(async (event) => {
       }
     }
   } catch (error) {
-    console.error("Chyba při přihlášení:", error)
     throw createError({
       statusCode: 500,
       message: "Nepodařilo se přihlásit"

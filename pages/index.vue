@@ -83,11 +83,21 @@
     </div>
 
     <button
+      v-if="!user"
       @click="showAuthModal = true"
       class="bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center justify-center mx-auto text-2xl mb-12"
     >
       <span class="py-3 px-10">Připojit se</span>
     </button>
+
+    <div v-else class="text-center mb-12">
+      <router-link 
+        to="/dashboard" 
+        class="bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors inline-flex items-center justify-center text-2xl py-3 px-10"
+      >
+        Přejít do aplikace
+      </router-link>
+    </div>
 
     <AuthModal
       :is-open="showAuthModal"
@@ -337,12 +347,12 @@ ul {
 }
 
 .spotlight-1 {
-  border-bottom: 2000px solid rgba(255, 230, 100, 0.5);
+  border-bottom: 2200px solid rgba(255, 230, 100, 0.5);
   animation: beamColorSwap1 12s infinite, spotlightPulse 5s infinite alternate;
 }
 
 .spotlight-2 {
-  border-bottom: 2000px solid rgba(190, 149, 255, 0.5);
+  border-bottom: 2200px solid rgba(190, 149, 255, 0.5);
   animation: beamColorSwap2 12s infinite, spotlightPulse 7s infinite alternate-reverse;
 }
 

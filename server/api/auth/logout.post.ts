@@ -16,7 +16,6 @@ export default defineEventHandler(async (event) => {
 
     return { success: true }
   } catch (error) {
-    console.error("Chyba při odhlášení:", error)
     throw createError({
       statusCode: 500,
       message: "Nepodařilo se odhlásit"

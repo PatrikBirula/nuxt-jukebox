@@ -51,7 +51,6 @@ export default defineEventHandler(async (event) => {
       }
     }
   } catch (error) {
-    console.error("Chyba při registraci:", error)
     throw createError({
       statusCode: 500,
       message: "Nepodařilo se vytvořit účet"
