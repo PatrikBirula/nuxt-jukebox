@@ -30,7 +30,7 @@ onMounted(() => {
       const screenHeight = window.innerHeight;
       const backgroundEl = document.querySelector(".background-theme");
 
-      backgroundEl.style.height = `calc(${screenHeight}px - ${navbarHeight}px)`;
+      backgroundEl.style.minHeight = `calc(${screenHeight}px - ${navbarHeight}px)`;
     }
   };
   
