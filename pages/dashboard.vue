@@ -1,7 +1,7 @@
 <template>
   <div>
     <ClientOnly>
-      <div v-if="isLoading" class="container mx-auto px-4 py-16 flex items-center justify-center min-h-screen">
+      <div v-if="isLoading" class="container mx-auto px-4 py-16 flex items-center justify-center">
         <div class="text-center">
           <p class="text-xl">Načítání...</p>
         </div>
@@ -30,7 +30,7 @@
         </div>
       </div>
 
-      <div v-else class="container mx-auto px-4 py-16 flex flex-col items-center justify-center min-h-screen">
+      <div v-else class="container mx-auto px-4 py-16 flex flex-col items-center justify-center">
         <div class="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
           <h1 class="text-3xl font-bold text-center mb-8">Přístup omezen</h1>
           <p class="text-gray-600 mb-6 text-center">Pro přístup do dashboardu se prosím přihlaste nebo zaregistrujte.</p>
@@ -127,7 +127,7 @@
       </div>
       
       <template #fallback>
-        <div class="container mx-auto px-4 py-16 flex items-center justify-center min-h-screen">
+        <div class="container mx-auto px-4 py-16 flex items-center justify-center">
           <div class="text-center">
             <p class="text-xl">Načítání...</p>
           </div>
@@ -141,6 +141,7 @@
 import { ref, onMounted, watch, nextTick } from "vue";
 
 definePageMeta({
+  layout: "themed",
   middleware: ["auth"]
 });
 
