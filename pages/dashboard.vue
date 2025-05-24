@@ -213,100 +213,83 @@
                   </div>
                   <h2 class="text-xl font-semibold text-gray-700">Krok 4: Výběr playlistu</h2>
                 </div>
-                <p class="mt-3 ml-14 text-gray-600">
-                  Vyberte základní playlist, který bude hrát, pokud nikdo nepřidá písničku.
-                </p>
-                <div class="ml-14 mt-4">
-                  <div v-if="defaultPlaylist" class="flex items-center gap-4">
-                    <div class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm flex items-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                      </svg>
-                      Playlist: {{ defaultPlaylist.name }}
-                    </div>
+                <div class="mt-3 ml-14">
+                  <p class="text-gray-600 mb-3">
+                    Vyberte základní playlist, který bude hrát, pokud nikdo nepřidá písničku.
+                  </p>
+                  
+                  <!-- Vybraný playlist -->
+                  <div v-if="defaultPlaylist" class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm inline-flex items-center mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Vybraný playlist: {{ defaultPlaylist.name }}
+                  </div>
+                  
+                  <!-- Načítání playlistů -->
+                  <div v-if="isLoadingPlaylists" class="flex justify-center py-4">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500"></div>
+                  </div>
+                  
+                  <!-- Chyba při načítání -->
+                  <div v-else-if="playlistsError" class="text-red-600 py-2">
+                    {{ playlistsError }}
                     <button 
-                      @click="openPlaylistSelector" 
-                      class="text-yellow-500 hover:text-yellow-700 transition-colors"
+                      @click="fetchUserPlaylists" 
+                      class="ml-2 text-yellow-600 hover:text-yellow-800"
                     >
-                      Změnit
+                      Zkusit znovu
                     </button>
                   </div>
-                  <button 
-                    v-else
-                    @click="openPlaylistSelector" 
-                    class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition-colors"
-                  >
-                    Vybrat playlist
-                  </button>
                   
-                  <!-- Sekce pro výběr playlistu -->
-                  <div v-if="isPlaylistSelectorOpen" class="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <div class="flex justify-between items-center mb-3">
-                      <h3 class="font-semibold text-gray-700">Vyberte playlist</h3>
-                      <button 
-                        @click="closePlaylistSelector" 
-                        class="text-gray-500 hover:text-gray-700"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                        </svg>
-                      </button>
+                  <!-- Seznam playlistů -->
+                  <div v-else>
+                    <div v-if="userPlaylists.length === 0 && !isLoadingPlaylists" class="text-gray-600 py-2">
+                      Nemáte žádné dostupné playlisty. Vytvořte si nejprve playlist na Spotify.
                     </div>
                     
-                    <!-- Načítání playlistů -->
-                    <div v-if="isLoadingPlaylists" class="flex justify-center py-4">
-                      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500"></div>
-                    </div>
-                    
-                    <!-- Chyba při načítání -->
-                    <div v-else-if="playlistsError" class="text-red-600 py-2">
-                      {{ playlistsError }}
+                    <div v-else-if="!userPlaylists.length && !isLoadingPlaylists" class="mb-4">
                       <button 
                         @click="fetchUserPlaylists" 
-                        class="ml-2 text-yellow-600 hover:text-yellow-800"
+                        class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition-colors"
                       >
-                        Zkusit znovu
+                        Načíst playlisty
                       </button>
                     </div>
                     
-                    <!-- Seznam playlistů -->
-                    <div v-else-if="userPlaylists.length > 0" class="max-h-72 overflow-y-auto">
-                      <div 
-                        v-for="playlist in userPlaylists" 
-                        :key="playlist.id"
-                        class="flex items-center p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors mb-2"
-                        @click="selectPlaylist(playlist); closePlaylistSelector()"
-                      >
-                        <div class="w-12 h-12 flex-shrink-0 mr-3">
-                          <img 
-                            v-if="playlist.images && playlist.images.length > 0" 
-                            :src="playlist.images[0].url" 
-                            :alt="playlist.name" 
-                            class="w-12 h-12 rounded object-cover"
-                          />
-                          <div v-else class="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    <div v-else class="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                      <div class="max-h-96 overflow-y-auto">
+                        <div 
+                          v-for="playlist in userPlaylists" 
+                          :key="playlist.id"
+                          class="flex items-center p-3 border-b last:border-b-0 hover:bg-gray-50 cursor-pointer transition-colors"
+                          :class="{ 'bg-yellow-50': defaultPlaylist && defaultPlaylist.id === playlist.id }"
+                          @click="selectPlaylist(playlist)"
+                        >
+                          <div class="w-12 h-12 flex-shrink-0 mr-3">
+                            <img 
+                              v-if="playlist.images && playlist.images.length > 0" 
+                              :src="playlist.images[0].url" 
+                              :alt="playlist.name" 
+                              class="w-12 h-12 rounded object-cover"
+                            />
+                            <div v-else class="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                              </svg>
+                            </div>
+                          </div>
+                          <div class="flex-grow">
+                            <h4 class="font-medium text-gray-800">{{ playlist.name }}</h4>
+                            <p class="text-sm text-gray-500">{{ playlist.tracks.total }} skladeb</p>
+                          </div>
+                          <div v-if="defaultPlaylist && defaultPlaylist.id === playlist.id" class="ml-2 text-yellow-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
                             </svg>
                           </div>
                         </div>
-                        <div class="flex-grow">
-                          <h4 class="font-medium text-gray-800">{{ playlist.name }}</h4>
-                          <p class="text-sm text-gray-500">{{ playlist.tracks.total }} skladeb</p>
-                        </div>
-                        <div class="ml-2">
-                          <button class="text-yellow-500 hover:text-yellow-700">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                            </svg>
-                          </button>
-                        </div>
                       </div>
-                    </div>
-                    
-                    <!-- Žádné playlisty -->
-                    <div v-else class="text-gray-600 py-2">
-                      Nemáte žádné dostupné playlisty. Vytvořte si nejprve playlist na Spotify.
                     </div>
                   </div>
                 </div>
@@ -475,7 +458,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick, computed } from "vue";
+import { ref, onMounted, watch, nextTick, computed, onBeforeUnmount } from "vue";
 
 definePageMeta({
   layout: "themed",
@@ -501,7 +484,47 @@ const paymentQrCode = ref(null);
 const userPlaylists = ref([]);
 const isLoadingPlaylists = ref(false);
 const playlistsError = ref("");
-const isPlaylistSelectorOpen = ref(false);
+
+// Proměnná pro uchování intervalu kontroly tokenu
+const tokenRefreshInterval = ref(null);
+
+// Funkce pro pravidelnou kontrolu a obnovu Spotify tokenu
+const setupTokenRefresh = () => {
+  // Vyčistíme případný existující interval
+  if (tokenRefreshInterval.value) {
+    clearInterval(tokenRefreshInterval.value);
+  }
+  
+  // Kontrola a obnova tokenu každých 30 minut (1800000 ms)
+  // Spotify token má platnost 1 hodinu, takže kontrolujeme po polovině této doby
+  tokenRefreshInterval.value = setInterval(async () => {
+    if (isSpotifyConnected.value && user.value) {
+      try {
+        console.log("Kontrola platnosti Spotify tokenu...");
+        
+        // Pošleme požadavek na endpoint, který zkontroluje platnost tokenu a případně ho obnoví
+        const response = await $fetch("/api/spotify/refresh-token", {
+          method: "POST"
+        });
+        
+        if (response.refreshed) {
+          console.log("Spotify token byl úspěšně obnoven");
+        } else {
+          console.log("Spotify token je stále platný");
+        }
+      } catch (error) {
+        console.error("Chyba při obnově Spotify tokenu:", error);
+      }
+    }
+  }, 1800000); // 30 minut
+};
+
+// Vyčištění intervalu při opuštění stránky
+onBeforeUnmount(() => {
+  if (tokenRefreshInterval.value) {
+    clearInterval(tokenRefreshInterval.value);
+  }
+});
 
 // Načteme data uživatele
 const fetchUserData = async () => {
@@ -554,6 +577,11 @@ const fetchJukeboxSettings = async () => {
     
     if (response.jukeboxStarted) {
       jukeboxStarted.value = response.jukeboxStarted;
+    }
+    
+    // Automatické načtení playlistů ze Spotify po získání nastavení
+    if (isSpotifyConnected.value) {
+      await fetchUserPlaylists();
     }
   } catch (error) {
     console.error("Chyba při načítání nastavení jukeboxu:", error);
@@ -628,6 +656,11 @@ onMounted(async () => {
     isSpotifyConnected.value = true;
     // Vyčistíme URL od parametrů
     router.replace({ path: route.path });
+  }
+  
+  // Nastavení pravidelné kontroly tokenu po načtení stránky, pokud je uživatel přihlášen
+  if (user.value && isSpotifyConnected.value) {
+    setupTokenRefresh();
   }
 });
 
@@ -842,22 +875,11 @@ const selectPlaylist = async (playlist) => {
         id: playlist.id,
         name: playlist.name
       };
-      alert("Výchozí playlist byl úspěšně nastaven!");
     }
   } catch (error) {
     console.error("Chyba při výběru playlistu:", error);
     alert("Nepodařilo se nastavit výchozí playlist. Zkuste to prosím znovu.");
   }
-};
-
-// Funkce pro otevření modalu s playlisty
-const openPlaylistSelector = async () => {
-  // Nejprve načteme playlisty
-  await fetchUserPlaylists();
-  
-  // Zde by normálně otevíral modal, ale pro jednoduchost budeme zobrazovat
-  // přímo na stránce v rámci komponenty
-  isPlaylistSelectorOpen.value = true;
 };
 
 // Spuštění jukeboxu
@@ -894,10 +916,12 @@ const startJukebox = async () => {
   }
 };
 
-// Funkce pro zavření modalu s playlisty
-const closePlaylistSelector = () => {
-  isPlaylistSelectorOpen.value = false;
-};
+// Sledování stavu připojení ke Spotify a spuštění kontroly tokenu při změně
+watch(isSpotifyConnected, (newValue) => {
+  if (newValue && user.value) {
+    setupTokenRefresh();
+  }
+});
 </script>
 
 <style scoped>
