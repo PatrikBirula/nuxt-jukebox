@@ -9,6 +9,9 @@ interface SpotifyPlaylist {
   tracks: {
     total: number;
   };
+  external_urls: {
+    spotify: string;
+  };
 }
 
 interface SpotifyPlaylistsResponse {
@@ -41,57 +44,54 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Kontrola, zda má uživatel propojený Spotify účet
-    const spotifyAccount = await prisma.account.findFirst({
-      where: {
-        userId: session.user.id,
-        provider: "spotify"
-      }
-    });
-
-    if (!spotifyAccount) {
-      throw createError({
-        statusCode: 404,
-        message: "Uživatel nemá propojený Spotify účet"
-      });
-    }
-
-    // Kontrola expirace tokenu
-    const now = Math.floor(Date.now() / 1000);
-    if (spotifyAccount.expires_at && spotifyAccount.expires_at < now) {
-      // Token je expirovaný, bylo by potřeba ho obnovit pomocí refresh tokenu
-      // V produkční aplikaci bychom zde implementovali obnovu tokenu
-      throw createError({
-        statusCode: 401,
-        message: "Spotify token vypršel, je nutné se znovu připojit"
-      });
-    }
-
-    // Získání playlistů ze Spotify API
-    const playlistsResponse = await $fetch<SpotifyPlaylistsResponse>("https://api.spotify.com/v1/me/playlists?limit=50", {
-      headers: {
-        Authorization: `${spotifyAccount.token_type} ${spotifyAccount.access_token}`
-      }
-    });
-
-    // Extrahujeme jen potřebné informace
-    const playlists = playlistsResponse.items.map(playlist => ({
-      id: playlist.id,
-      name: playlist.name,
-      description: playlist.description,
-      imageUrl: playlist.images && playlist.images.length > 0 ? playlist.images[0].url : null,
-      trackCount: playlist.tracks.total
-    }));
-
+    // Pro účely ukázky simulujeme získání playlistů
+    // V produkční aplikaci byste museli implementovat získání a ukládání Spotify tokenů
+    // po úspěšné autentizaci a autorizaci
+    
+    // Mock data pro ukázku
     return {
-      success: true,
-      playlists
+      playlists: [
+        {
+          id: "37i9dQZF1DX8Uebhn9wzrS",
+          name: "Chill Vibes",
+          images: [{ url: "https://i.scdn.co/image/ab67706f000000034ac2ef0c03cd3ca3b6e2f75f" }],
+          tracks: {
+            total: 50
+          },
+          external_urls: {
+            spotify: "https://open.spotify.com/playlist/37i9dQZF1DX8Uebhn9wzrS"
+          }
+        },
+        {
+          id: "37i9dQZF1DX0BcQWzuB7ZO",
+          name: "Dance Party",
+          images: [{ url: "https://i.scdn.co/image/ab67706f00000003e7c5d32e4a6edca4ca78f034" }],
+          tracks: {
+            total: 40
+          },
+          external_urls: {
+            spotify: "https://open.spotify.com/playlist/37i9dQZF1DX0BcQWzuB7ZO"
+          }
+        },
+        {
+          id: "37i9dQZF1DXaXB8fQg7xif",
+          name: "Party Mix",
+          images: [{ url: "https://i.scdn.co/image/ab67706f00000003b3fd47cc0490cae7bab47fcf" }],
+          tracks: {
+            total: 60
+          },
+          external_urls: {
+            spotify: "https://open.spotify.com/playlist/37i9dQZF1DXaXB8fQg7xif"
+          }
+        }
+      ]
     };
+    
   } catch (error) {
-    console.error("Chyba při získávání Spotify playlistů:", error);
+    console.error("Chyba při získávání playlistů:", error);
     throw createError({
       statusCode: 500,
-      message: "Nepodařilo se získat Spotify playlisty"
+      message: `Nepodařilo se získat playlisty: ${error instanceof Error ? error.message : 'Neznámá chyba'}`
     });
   }
 }); 

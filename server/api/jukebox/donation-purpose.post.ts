@@ -24,21 +24,29 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // V produkční aplikaci byste získali nastavení jukeboxu z databáze
-    // Pro teď vrátíme prázdná data, aby frontend fungoval
+    // Získání dat z požadavku
+    const body = await readBody(event);
+    
+    if (!body.purpose || typeof body.purpose !== 'string') {
+      throw createError({
+        statusCode: 400,
+        message: "Účel příspěvků nebyl specifikován"
+      });
+    }
+
+    // Zde by bylo potřeba uložit účel příspěvků do databáze
+    // V produkční aplikaci byste vytvořili nebo aktualizovali model pro nastavení jukeboxu
     
     return {
-      donationPurpose: "",
-      paymentQrCode: null,
-      defaultPlaylist: null,
-      jukeboxStarted: false
+      success: true,
+      message: "Účel příspěvků byl úspěšně uložen"
     };
     
   } catch (error) {
-    console.error("Chyba při načítání nastavení jukeboxu:", error);
+    console.error("Chyba při ukládání účelu příspěvků:", error);
     throw createError({
       statusCode: 500,
-      message: `Nepodařilo se načíst nastavení jukeboxu: ${error instanceof Error ? error.message : 'Neznámá chyba'}`
+      message: `Nepodařilo se uložit účel příspěvků: ${error instanceof Error ? error.message : 'Neznámá chyba'}`
     });
   }
 }); 

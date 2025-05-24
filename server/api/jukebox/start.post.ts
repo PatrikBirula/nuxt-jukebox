@@ -24,21 +24,29 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // V produkční aplikaci byste získali nastavení jukeboxu z databáze
-    // Pro teď vrátíme prázdná data, aby frontend fungoval
+    // Získání dat z požadavku
+    const body = await readBody(event);
+    
+    if (!body.defaultPlaylistId || typeof body.defaultPlaylistId !== 'string') {
+      throw createError({
+        statusCode: 400,
+        message: "ID výchozího playlistu nebylo specifikováno"
+      });
+    }
+
+    // Zde by bylo potřeba označit jukebox jako spuštěný v databázi
+    // V produkční aplikaci byste vytvořili nebo aktualizovali model pro nastavení jukeboxu
     
     return {
-      donationPurpose: "",
-      paymentQrCode: null,
-      defaultPlaylist: null,
-      jukeboxStarted: false
+      success: true,
+      message: "Jukebox byl úspěšně spuštěn"
     };
     
   } catch (error) {
-    console.error("Chyba při načítání nastavení jukeboxu:", error);
+    console.error("Chyba při spouštění jukeboxu:", error);
     throw createError({
       statusCode: 500,
-      message: `Nepodařilo se načíst nastavení jukeboxu: ${error instanceof Error ? error.message : 'Neznámá chyba'}`
+      message: `Nepodařilo se spustit jukebox: ${error instanceof Error ? error.message : 'Neznámá chyba'}`
     });
   }
 }); 

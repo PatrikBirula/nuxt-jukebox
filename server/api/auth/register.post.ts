@@ -29,10 +29,15 @@ export default defineEventHandler(async (event) => {
       }
     })
 
+    // Nastavit expiraci session na 7 dní
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 7)
+
     // Vytvoření session
     const session = await prisma.session.create({
       data: {
-        userId: user.id
+        userId: user.id,
+        expiresAt
       }
     })
 
@@ -51,6 +56,7 @@ export default defineEventHandler(async (event) => {
       }
     }
   } catch (error) {
+    console.error("Chyba při registraci:", error)
     throw createError({
       statusCode: 500,
       message: "Nepodařilo se vytvořit účet"
