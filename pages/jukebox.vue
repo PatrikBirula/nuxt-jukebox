@@ -46,6 +46,19 @@
               <div class="mt-8 text-center" v-if="playlistInfo">
                 <p class="text-gray-600">Playlist: {{ playlistInfo.name }}</p>
               </div>
+
+              <!-- Přidáno: Komponenta pro vyhledávání skladeb -->
+              <div class="mt-10 border-t pt-8 w-full">
+                <SongSearch 
+                  v-if="spotifyDeviceId" 
+                  :device-id="spotifyDeviceId"
+                  @track-added="handleTrackAdded"
+                  @error="handleSearchError"
+                />
+                <div v-else class="text-center text-gray-600">
+                  Načítání přehrávače...
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -57,6 +70,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed } from "vue";
 import SpotifyPlayer from "~/components/SpotifyPlayer.client.vue";
+import SongSearch from "~/components/SongSearch.client.vue";
 
 // Základní stav
 const isLoading = ref(true);
@@ -171,6 +185,17 @@ const handlePlayerError = (errorMessage) => {
 
 const handlePlayStateChanged = (state) => {
   isPlaying.value = state.isPlaying;
+};
+
+// Přidáno: Nové funkce pro správu vyhledávání a fronty
+const handleTrackAdded = (track) => {
+  console.log("Písnička přidána do fronty:", track.name);
+  // Zde můžeme implementovat notifikaci nebo jiné akce
+};
+
+const handleSearchError = (errorMessage) => {
+  console.error("Chyba při vyhledávání:", errorMessage);
+  // Zde můžeme implementovat zobrazení chyby uživateli
 };
 
 // Vyčištění intervalů při opuštění stránky

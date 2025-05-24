@@ -27,6 +27,13 @@
             {{ currentTrack.artists.map(artist => artist.name).join(', ') }}
           </p>
           
+          <!-- Indikátor, zda jde o písničku z karaoke fronty -->
+          <div v-if="isKaraokeSong" class="mt-2">
+            <span class="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded">
+              Karaoke písnička
+            </span>
+          </div>
+          
           <!-- Progress bar -->
           <div class="w-full max-w-md mx-auto mt-4">
             <div class="flex justify-between text-sm text-gray-500 mb-1">
@@ -106,6 +113,8 @@ const positionInterval = ref(null);
 const currentTrackIndex = ref(0);
 const resumeInfo = ref(null);
 const scriptLoaded = ref(false);
+const isKaraokeSong = ref(false);
+const queuedTracks = ref([]);
 
 // Wake Lock API
 const wakeLock = ref(null);
@@ -215,7 +224,7 @@ const createPlayer = async () => {
     });
     
     // Playback status updates
-    player.value.addListener('player_state_changed', state => {
+    player.value.addListener('player_state_changed', async state => {
       if (!state) return;
       
       currentTrack.value = state.track_window.current_track;
@@ -223,12 +232,16 @@ const createPlayer = async () => {
       position.value = state.position;
       duration.value = state.duration;
       
+      // Kontrola, zda je aktuální skladba karaoke
+      isKaraokeSong.value = await checkIfKaraokeSong(state.track_window.current_track.uri);
+      
       // Ukládáme aktuální stav přehrávání
       savePlaybackState(state);
       
       emit('play-state-changed', {
         isPlaying: isPlaying.value,
-        currentTrack: currentTrack.value
+        currentTrack: currentTrack.value,
+        isKaraokeSong: isKaraokeSong.value
       });
     });
     
@@ -458,6 +471,38 @@ const checkWakeLockSupport = () => {
                             navigator.wakeLock && 
                             typeof navigator.wakeLock.request === 'function';
   console.log('Wake Lock API podporováno:', wakeLockSupported.value);
+};
+
+// Přidáno: Funkce pro kontrolu, zda je aktuální skladba karaoke písnička
+const checkIfKaraokeSong = async (trackUri) => {
+  if (!trackUri) return false;
+  
+  // Pro jednoduchost - pokud máme frontu a první skladba v ní má stejné URI jako aktuální skladba
+  // Poznámka: V reálné implementaci by se to řešilo přes API endpoint, který by vracel informaci o původu skladby
+  try {
+    await fetchQueuedTracks();
+    if (queuedTracks.value.length > 0 && queuedTracks.value[0].uri === trackUri) {
+      return true;
+    }
+  } catch (err) {
+    console.error('Chyba při kontrole karaoke skladby:', err);
+  }
+  
+  return false;
+};
+
+// Přidáno: Načtení aktuální fronty ze Spotify API
+const fetchQueuedTracks = async () => {
+  try {
+    if (!player.value) return;
+    
+    const response = await fetch('/api/spotify/queue');
+    const data = await response.json();
+    
+    queuedTracks.value = data.queue || [];
+  } catch (err) {
+    console.error('Chyba při načítání fronty:', err);
+  }
 };
 
 // Inicializace přehrávače při načtení komponenty
