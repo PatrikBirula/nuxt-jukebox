@@ -32,8 +32,21 @@
           </div>
           
           <div v-else>
-            <!-- Obsah jukeboxu bude implementován později -->
-            <p class="text-center text-xl">Jukebox je aktivní a připraven!</p>
+            <div class="flex flex-col items-center justify-center">
+              <!-- Přehrávač Spotify Web SDK -->
+              <SpotifyPlayer 
+                ref="spotifyPlayer"
+                :playlist="playlistInfo" 
+                @player-ready="handlePlayerReady"
+                @player-error="handlePlayerError"
+                @play-state-changed="handlePlayStateChanged"
+              />
+              
+              <!-- Playlist info -->
+              <div class="mt-8 text-center" v-if="playlistInfo">
+                <p class="text-gray-600">Playlist: {{ playlistInfo.name }}</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -42,13 +55,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from "vue";
+import { ref, onMounted, onBeforeUnmount, computed } from "vue";
+import SpotifyPlayer from "~/components/SpotifyPlayer.client.vue";
 
 // Základní stav
 const isLoading = ref(true);
 const isAuthenticated = ref(false);
 const jukeboxStarted = ref(false);
 const user = useState("user", () => null);
+const playerState = ref(null);
+const isPlaying = ref(false);
+const playlistInfo = ref(null);
+const defaultPlaylistId = ref(null);
+const spotifyPlayer = ref(null);
+const spotifyDeviceId = ref(null);
 
 // Proměnná pro uchování intervalu kontroly tokenu
 const tokenRefreshInterval = ref(null);
@@ -75,6 +95,15 @@ const checkStatus = async () => {
       });
       
       jukeboxStarted.value = jukeboxResponse.jukeboxStarted || false;
+      
+      // Uložíme ID výchozího playlistu
+      if (jukeboxResponse.defaultPlaylist) {
+        defaultPlaylistId.value = jukeboxResponse.defaultPlaylist.id;
+        playlistInfo.value = {
+          id: jukeboxResponse.defaultPlaylist.id,
+          name: jukeboxResponse.defaultPlaylist.name
+        };
+      }
     }
   } catch (error) {
     console.error("Chyba při kontrole stavu:", error);
@@ -125,7 +154,26 @@ onMounted(async () => {
   }
 });
 
-// Vyčištění intervalu při opuštění stránky
+// Event handlery pro Spotify Player
+const handlePlayerReady = (deviceId) => {
+  console.log("Spotify přehrávač je připraven, ID zařízení:", deviceId);
+  spotifyDeviceId.value = deviceId;
+  
+  // Automaticky spustíme přehrávání playlistu
+  if (defaultPlaylistId.value && spotifyPlayer.value) {
+    spotifyPlayer.value.playPlaylist(deviceId, defaultPlaylistId.value);
+  }
+};
+
+const handlePlayerError = (errorMessage) => {
+  console.error("Chyba Spotify přehrávače:", errorMessage);
+};
+
+const handlePlayStateChanged = (state) => {
+  isPlaying.value = state.isPlaying;
+};
+
+// Vyčištění intervalů při opuštění stránky
 onBeforeUnmount(() => {
   if (tokenRefreshInterval.value) {
     clearInterval(tokenRefreshInterval.value);
