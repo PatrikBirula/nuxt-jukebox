@@ -21,6 +21,7 @@ model User {
   updatedAt DateTime  @updatedAt
   sessions  Session[]
   accounts  Account[]
+  jukeboxSettings JukeboxSettings?
 }
 
 model Session {
@@ -61,4 +62,18 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model JukeboxSettings {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  paymentQrCodeUrl   String?
+  donationPurpose    String?
+  defaultPlaylistId  String?
+  defaultPlaylistName String?
+  jukeboxStarted     Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

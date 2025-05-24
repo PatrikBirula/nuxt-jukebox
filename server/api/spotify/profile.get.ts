@@ -10,6 +10,15 @@ interface SpotifyUserProfile {
   product?: string;
 }
 
+// Typová definice pro odpověď při obnově tokenu
+interface SpotifyTokenResponse {
+  access_token: string;
+  token_type: string;
+  scope: string;
+  expires_in: number;
+  refresh_token?: string;
+}
+
 export default defineEventHandler(async (event) => {
   try {
     // Kontrola, zda je uživatel přihlášený
@@ -52,13 +61,51 @@ export default defineEventHandler(async (event) => {
     // Kontrola expirace tokenu
     const now = Math.floor(Date.now() / 1000);
     if (spotifyAccount.expires_at && spotifyAccount.expires_at < now) {
-      // Token je expirovaný, bylo by potřeba ho obnovit pomocí refresh tokenu
-      // V produkční aplikaci bychom zde implementovali obnovu tokenu
-      // Pro jednoduchost budeme předpokládat, že uživatel se musí znovu připojit
-      throw createError({
-        statusCode: 401,
-        message: "Spotify token vypršel, je nutné se znovu připojit"
+      // Token vypršel, je potřeba ho obnovit
+      if (!spotifyAccount.refresh_token) {
+        throw createError({
+          statusCode: 401,
+          message: "Chybí refresh token, je potřeba se znovu přihlásit ke Spotify"
+        });
+      }
+
+      // Získání nového tokenu pomocí refresh tokenu
+      const clientId = process.env.SPOTIFY_CLIENT_ID;
+      const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+      
+      if (!clientId || !clientSecret) {
+        throw createError({
+          statusCode: 500,
+          message: "Chybí Spotify credentials v konfiguraci"
+        });
+      }
+
+      const tokenResponse = await $fetch<SpotifyTokenResponse>("https://accounts.spotify.com/api/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Authorization": `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`
+        },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: spotifyAccount.refresh_token
+        })
       });
+
+      // Aktualizace tokenu v databázi
+      await prisma.account.update({
+        where: { id: spotifyAccount.id },
+        data: {
+          access_token: tokenResponse.access_token,
+          expires_at: Math.floor(Date.now() / 1000) + tokenResponse.expires_in,
+          refresh_token: tokenResponse.refresh_token || spotifyAccount.refresh_token,
+          token_type: tokenResponse.token_type
+        }
+      });
+
+      // Aktualizace access tokenu pro použití v API volání
+      spotifyAccount.access_token = tokenResponse.access_token;
+      spotifyAccount.token_type = tokenResponse.token_type;
     }
 
     // Získání profilu ze Spotify API

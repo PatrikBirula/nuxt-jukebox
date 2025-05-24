@@ -79,9 +79,27 @@ export default defineEventHandler(async (event) => {
     // URL k souboru (relativní k veřejnému adresáři)
     const fileUrl = `/uploads/${fileName}`;
     
-    // Zde by bylo potřeba uložit cestu k souboru do databáze
-    // V produkční aplikaci byste vytvořili model pro nastavení jukeboxu
-    // a uložili URL k QR kódu
+    // Uložení URL QR kódu do databáze pro daného uživatele
+    // Nejprve zjistíme, zda už existuje záznam s nastavením
+    const existingSettings = await prisma.jukeboxSettings.findUnique({
+      where: { userId: session.user.id }
+    });
+    
+    if (existingSettings) {
+      // Aktualizujeme existující záznam
+      await prisma.jukeboxSettings.update({
+        where: { id: existingSettings.id },
+        data: { paymentQrCodeUrl: fileUrl }
+      });
+    } else {
+      // Vytvoříme nový záznam
+      await prisma.jukeboxSettings.create({
+        data: {
+          userId: session.user.id,
+          paymentQrCodeUrl: fileUrl
+        }
+      });
+    }
     
     return {
       success: true,

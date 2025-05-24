@@ -34,8 +34,28 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Zde by bylo potřeba označit jukebox jako spuštěný v databázi
-    // V produkční aplikaci byste vytvořili nebo aktualizovali model pro nastavení jukeboxu
+    // Označení jukeboxu jako spuštěného v databázi pro daného uživatele
+    // Nejprve zjistíme, zda už existuje záznam s nastavením
+    const existingSettings = await prisma.jukeboxSettings.findUnique({
+      where: { userId: session.user.id }
+    });
+    
+    if (existingSettings) {
+      // Aktualizujeme existující záznam
+      await prisma.jukeboxSettings.update({
+        where: { id: existingSettings.id },
+        data: { jukeboxStarted: true }
+      });
+    } else {
+      // Vytvoříme nový záznam
+      await prisma.jukeboxSettings.create({
+        data: {
+          userId: session.user.id,
+          defaultPlaylistId: body.defaultPlaylistId,
+          jukeboxStarted: true
+        }
+      });
+    }
     
     return {
       success: true,

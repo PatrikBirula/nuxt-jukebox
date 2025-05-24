@@ -41,8 +41,31 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Zde by bylo potřeba uložit výchozí playlist do databáze
-    // V produkční aplikaci byste vytvořili nebo aktualizovali model pro nastavení jukeboxu
+    // Uložení výchozího playlistu do databáze pro daného uživatele
+    // Nejprve zjistíme, zda už existuje záznam s nastavením
+    const existingSettings = await prisma.jukeboxSettings.findUnique({
+      where: { userId: session.user.id }
+    });
+    
+    if (existingSettings) {
+      // Aktualizujeme existující záznam
+      await prisma.jukeboxSettings.update({
+        where: { id: existingSettings.id },
+        data: {
+          defaultPlaylistId: body.playlistId,
+          defaultPlaylistName: body.playlistName
+        }
+      });
+    } else {
+      // Vytvoříme nový záznam
+      await prisma.jukeboxSettings.create({
+        data: {
+          userId: session.user.id,
+          defaultPlaylistId: body.playlistId,
+          defaultPlaylistName: body.playlistName
+        }
+      });
+    }
     
     return {
       success: true,

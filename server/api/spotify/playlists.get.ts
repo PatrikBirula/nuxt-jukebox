@@ -20,6 +20,15 @@ interface SpotifyPlaylistsResponse {
   total: number;
 }
 
+// Typová definice pro odpověď při obnově tokenu
+interface SpotifyTokenResponse {
+  access_token: string;
+  token_type: string;
+  scope: string;
+  expires_in: number;
+  refresh_token?: string;
+}
+
 export default defineEventHandler(async (event) => {
   try {
     // Kontrola, zda je uživatel přihlášený
@@ -44,47 +53,78 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Pro účely ukázky simulujeme získání playlistů
-    // V produkční aplikaci byste museli implementovat získání a ukládání Spotify tokenů
-    // po úspěšné autentizaci a autorizaci
-    
-    // Mock data pro ukázku
-    return {
-      playlists: [
-        {
-          id: "37i9dQZF1DX8Uebhn9wzrS",
-          name: "Chill Vibes",
-          images: [{ url: "https://i.scdn.co/image/ab67706f000000034ac2ef0c03cd3ca3b6e2f75f" }],
-          tracks: {
-            total: 50
-          },
-          external_urls: {
-            spotify: "https://open.spotify.com/playlist/37i9dQZF1DX8Uebhn9wzrS"
-          }
+    // Získání Spotify účtu uživatele
+    const spotifyAccount = await prisma.account.findFirst({
+      where: {
+        userId: session.user.id,
+        provider: "spotify"
+      }
+    });
+
+    if (!spotifyAccount) {
+      throw createError({
+        statusCode: 401,
+        message: "Uživatel nemá propojený Spotify účet"
+      });
+    }
+
+    // Kontrola platnosti tokenu
+    const now = Math.floor(Date.now() / 1000);
+    if (spotifyAccount.expires_at && spotifyAccount.expires_at < now) {
+      // Token vypršel, je potřeba ho obnovit
+      if (!spotifyAccount.refresh_token) {
+        throw createError({
+          statusCode: 401,
+          message: "Chybí refresh token, je potřeba se znovu přihlásit ke Spotify"
+        });
+      }
+
+      // Získání nového tokenu pomocí refresh tokenu
+      const clientId = process.env.SPOTIFY_CLIENT_ID;
+      const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+      
+      if (!clientId || !clientSecret) {
+        throw createError({
+          statusCode: 500,
+          message: "Chybí Spotify credentials v konfiguraci"
+        });
+      }
+
+      const tokenResponse = await $fetch<SpotifyTokenResponse>("https://accounts.spotify.com/api/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Authorization": `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`
         },
-        {
-          id: "37i9dQZF1DX0BcQWzuB7ZO",
-          name: "Dance Party",
-          images: [{ url: "https://i.scdn.co/image/ab67706f00000003e7c5d32e4a6edca4ca78f034" }],
-          tracks: {
-            total: 40
-          },
-          external_urls: {
-            spotify: "https://open.spotify.com/playlist/37i9dQZF1DX0BcQWzuB7ZO"
-          }
-        },
-        {
-          id: "37i9dQZF1DXaXB8fQg7xif",
-          name: "Party Mix",
-          images: [{ url: "https://i.scdn.co/image/ab67706f00000003b3fd47cc0490cae7bab47fcf" }],
-          tracks: {
-            total: 60
-          },
-          external_urls: {
-            spotify: "https://open.spotify.com/playlist/37i9dQZF1DXaXB8fQg7xif"
-          }
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: spotifyAccount.refresh_token
+        })
+      });
+
+      // Aktualizace tokenu v databázi
+      await prisma.account.update({
+        where: { id: spotifyAccount.id },
+        data: {
+          access_token: tokenResponse.access_token,
+          expires_at: Math.floor(Date.now() / 1000) + tokenResponse.expires_in,
+          refresh_token: tokenResponse.refresh_token || spotifyAccount.refresh_token
         }
-      ]
+      });
+
+      // Aktualizace access tokenu pro použití v API volání
+      spotifyAccount.access_token = tokenResponse.access_token;
+    }
+
+    // Získání playlistů ze Spotify API
+    const playlistsResponse = await $fetch<SpotifyPlaylistsResponse>("https://api.spotify.com/v1/me/playlists?limit=50", {
+      headers: {
+        Authorization: `Bearer ${spotifyAccount.access_token}`
+      }
+    });
+
+    return {
+      playlists: playlistsResponse.items
     };
     
   } catch (error) {

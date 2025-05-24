@@ -24,14 +24,30 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // V produkční aplikaci byste získali nastavení jukeboxu z databáze
-    // Pro teď vrátíme prázdná data, aby frontend fungoval
+    // Získání nastavení jukeboxu z databáze pro daného uživatele
+    const settings = await prisma.jukeboxSettings.findUnique({
+      where: { userId: session.user.id }
+    });
     
+    // Pokud nemáme žádná nastavení, vrátíme výchozí hodnoty
+    if (!settings) {
+      return {
+        donationPurpose: "",
+        paymentQrCode: null,
+        defaultPlaylist: null,
+        jukeboxStarted: false
+      };
+    }
+    
+    // Vrátíme nastavení z databáze
     return {
-      donationPurpose: "",
-      paymentQrCode: null,
-      defaultPlaylist: null,
-      jukeboxStarted: false
+      donationPurpose: settings.donationPurpose || "",
+      paymentQrCode: settings.paymentQrCodeUrl,
+      defaultPlaylist: settings.defaultPlaylistId ? {
+        id: settings.defaultPlaylistId,
+        name: settings.defaultPlaylistName || "Výchozí playlist"
+      } : null,
+      jukeboxStarted: settings.jukeboxStarted
     };
     
   } catch (error) {

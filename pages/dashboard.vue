@@ -169,7 +169,7 @@
                   Napište, na co hosté přispívají (novomanželé, charita, personál).
                 </p>
                 <div class="ml-14 mt-4">
-                  <div v-if="donationPurpose" class="mb-2">
+                  <div v-if="donationPurpose && donationPurpose.trim() !== ''" class="mb-2">
                     <div class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm inline-flex items-center mb-2">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -178,12 +178,17 @@
                     </div>
                     <p class="text-gray-700 italic">{{ donationPurpose }}</p>
                   </div>
-                  <input 
-                    v-model="donationPurpose" 
-                    type="text" 
-                    placeholder="Např. Příspěvek pro novomanžele" 
-                    class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-700"
-                  >
+                  <div class="mb-2">
+                    <input 
+                      v-model="donationPurpose" 
+                      type="text" 
+                      placeholder="Např. Příspěvek pro novomanžele" 
+                      class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-700"
+                    >
+                    <p class="text-gray-500 text-sm mt-1">
+                      Zadejte účel příspěvků a uložte ho tlačítkem níže. Po uložení se zpřístupní další krok.
+                    </p>
+                  </div>
                   <button 
                     @click="saveDonationPurpose" 
                     class="mt-2 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors"
@@ -196,7 +201,7 @@
 
             <!-- Krok 4: Výběr playlistu - zobrazí se pouze pokud je splněn krok 3 -->
             <transition name="fade">
-              <div v-if="isSpotifyConnected && paymentQrCode && donationPurpose" class="bg-white shadow-lg rounded-xl p-6 border-l-4 border-yellow-500 relative overflow-hidden transition-all hover:shadow-xl">
+              <div v-if="isSpotifyConnected && paymentQrCode && donationPurpose && donationPurpose.trim() !== ''" class="bg-white shadow-lg rounded-xl p-6 border-l-4 border-yellow-500 relative overflow-hidden transition-all hover:shadow-xl">
                 <div class="absolute -top-10 -right-10 bg-yellow-100 w-24 h-24 rounded-full flex items-center justify-center opacity-20">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-yellow-600" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 3V13.55C11.41 13.21 10.73 13 10 13C7.79 13 6 14.79 6 17C6 19.21 7.79 21 10 21C12.21 21 14 19.21 14 17V7H18V3H12ZM10 19C8.9 19 8 18.1 8 17C8 15.9 8.9 15 10 15C11.1 15 12 15.9 12 17C12 18.1 11.1 19 10 19Z" />
@@ -220,7 +225,7 @@
                       Playlist: {{ defaultPlaylist.name }}
                     </div>
                     <button 
-                      @click="selectDefaultPlaylist" 
+                      @click="openPlaylistSelector" 
                       class="text-yellow-500 hover:text-yellow-700 transition-colors"
                     >
                       Změnit
@@ -228,18 +233,89 @@
                   </div>
                   <button 
                     v-else
-                    @click="selectDefaultPlaylist" 
+                    @click="openPlaylistSelector" 
                     class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition-colors"
                   >
                     Vybrat playlist
                   </button>
+                  
+                  <!-- Sekce pro výběr playlistu -->
+                  <div v-if="isPlaylistSelectorOpen" class="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div class="flex justify-between items-center mb-3">
+                      <h3 class="font-semibold text-gray-700">Vyberte playlist</h3>
+                      <button 
+                        @click="closePlaylistSelector" 
+                        class="text-gray-500 hover:text-gray-700"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                      </button>
+                    </div>
+                    
+                    <!-- Načítání playlistů -->
+                    <div v-if="isLoadingPlaylists" class="flex justify-center py-4">
+                      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500"></div>
+                    </div>
+                    
+                    <!-- Chyba při načítání -->
+                    <div v-else-if="playlistsError" class="text-red-600 py-2">
+                      {{ playlistsError }}
+                      <button 
+                        @click="fetchUserPlaylists" 
+                        class="ml-2 text-yellow-600 hover:text-yellow-800"
+                      >
+                        Zkusit znovu
+                      </button>
+                    </div>
+                    
+                    <!-- Seznam playlistů -->
+                    <div v-else-if="userPlaylists.length > 0" class="max-h-72 overflow-y-auto">
+                      <div 
+                        v-for="playlist in userPlaylists" 
+                        :key="playlist.id"
+                        class="flex items-center p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors mb-2"
+                        @click="selectPlaylist(playlist); closePlaylistSelector()"
+                      >
+                        <div class="w-12 h-12 flex-shrink-0 mr-3">
+                          <img 
+                            v-if="playlist.images && playlist.images.length > 0" 
+                            :src="playlist.images[0].url" 
+                            :alt="playlist.name" 
+                            class="w-12 h-12 rounded object-cover"
+                          />
+                          <div v-else class="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div class="flex-grow">
+                          <h4 class="font-medium text-gray-800">{{ playlist.name }}</h4>
+                          <p class="text-sm text-gray-500">{{ playlist.tracks.total }} skladeb</p>
+                        </div>
+                        <div class="ml-2">
+                          <button class="text-yellow-500 hover:text-yellow-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Žádné playlisty -->
+                    <div v-else class="text-gray-600 py-2">
+                      Nemáte žádné dostupné playlisty. Vytvořte si nejprve playlist na Spotify.
+                    </div>
+                  </div>
                 </div>
               </div>
             </transition>
 
             <!-- Krok 5: Spuštění jukeboxu - zobrazí se pouze pokud je splněn krok 4 -->
             <transition name="fade">
-              <div v-if="isSpotifyConnected && paymentQrCode && donationPurpose && defaultPlaylist" class="bg-white shadow-lg rounded-xl p-6 border-l-4 border-red-500 relative overflow-hidden transition-all hover:shadow-xl">
+              <div v-if="isSpotifyConnected && paymentQrCode && donationPurpose && donationPurpose.trim() !== '' && defaultPlaylist" class="bg-white shadow-lg rounded-xl p-6 border-l-4 border-red-500 relative overflow-hidden transition-all hover:shadow-xl">
                 <div class="absolute -top-10 -right-10 bg-red-100 w-24 h-24 rounded-full flex items-center justify-center opacity-20">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-red-600" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M8 5V19L19 12L8 5Z" />
@@ -422,6 +498,10 @@ const donationPurpose = ref("");
 const defaultPlaylist = ref(null);
 const jukeboxStarted = ref(false);
 const paymentQrCode = ref(null);
+const userPlaylists = ref([]);
+const isLoadingPlaylists = ref(false);
+const playlistsError = ref("");
+const isPlaylistSelectorOpen = ref(false);
 
 // Načteme data uživatele
 const fetchUserData = async () => {
@@ -460,7 +540,7 @@ const fetchJukeboxSettings = async () => {
     });
     
     // Nastavení hodnot z odpovědi
-    if (response.donationPurpose) {
+    if (response.donationPurpose && response.donationPurpose.trim() !== "") {
       donationPurpose.value = response.donationPurpose;
     }
     
@@ -700,7 +780,8 @@ const uploadPaymentQR = () => {
 
 // Uložení účelu příspěvků
 const saveDonationPurpose = async () => {
-  if (!donationPurpose.value.trim()) {
+  const purpose = donationPurpose.value.trim();
+  if (!purpose) {
     alert("Prosím zadejte účel příspěvků.");
     return;
   }
@@ -709,11 +790,13 @@ const saveDonationPurpose = async () => {
     const response = await $fetch("/api/jukebox/donation-purpose", {
       method: "POST",
       body: {
-        purpose: donationPurpose.value
+        purpose: purpose
       }
     });
     
     if (response.success) {
+      // Explicitně nastavíme hodnotu pro zajištění podmíněného zobrazení
+      donationPurpose.value = purpose;
       alert("Účel příspěvků byl úspěšně uložen!");
     }
   } catch (error) {
@@ -722,46 +805,59 @@ const saveDonationPurpose = async () => {
   }
 };
 
-// Výběr výchozího playlistu
-const selectDefaultPlaylist = async () => {
-  if (!isSpotifyConnected.value) {
-    alert("Nejprve se připojte ke Spotify.");
-    return;
-  }
-  
+// Funkce pro načtení playlistů uživatele
+const fetchUserPlaylists = async () => {
   try {
-    // Získání seznamu playlistů uživatele
+    isLoadingPlaylists.value = true;
+    playlistsError.value = "";
+    
     const response = await $fetch("/api/spotify/playlists", {
       method: "GET"
     });
     
-    if (response.playlists && response.playlists.length > 0) {
-      // Zde by bylo ideální zobrazit modal s výběrem playlistu
-      // Pro jednoduchost použijeme confirm s výběrem prvního playlistu
-      const firstPlaylist = response.playlists[0];
-      const confirmSelection = confirm(`Chcete zvolit playlist "${firstPlaylist.name}" jako výchozí?`);
-      
-      if (confirmSelection) {
-        defaultPlaylist.value = firstPlaylist;
-        
-        // Uložení vybraného playlistu
-        await $fetch("/api/jukebox/default-playlist", {
-          method: "POST",
-          body: {
-            playlistId: firstPlaylist.id,
-            playlistName: firstPlaylist.name
-          }
-        });
-        
-        alert("Výchozí playlist byl úspěšně nastaven!");
+    if (response && response.playlists) {
+      userPlaylists.value = response.playlists;
+    }
+  } catch (error) {
+    console.error("Chyba při načítání playlistů:", error);
+    playlistsError.value = "Nepodařilo se načíst playlisty. Zkuste to prosím znovu.";
+  } finally {
+    isLoadingPlaylists.value = false;
+  }
+};
+
+// Funkce pro výběr playlistu
+const selectPlaylist = async (playlist) => {
+  try {
+    const response = await $fetch("/api/jukebox/default-playlist", {
+      method: "POST",
+      body: {
+        playlistId: playlist.id,
+        playlistName: playlist.name
       }
-    } else {
-      alert("Nemáte žádné dostupné playlisty. Vytvořte si nejprve playlist na Spotify.");
+    });
+    
+    if (response.success) {
+      defaultPlaylist.value = {
+        id: playlist.id,
+        name: playlist.name
+      };
+      alert("Výchozí playlist byl úspěšně nastaven!");
     }
   } catch (error) {
     console.error("Chyba při výběru playlistu:", error);
-    alert("Nepodařilo se získat seznam playlistů. Zkuste to prosím znovu.");
+    alert("Nepodařilo se nastavit výchozí playlist. Zkuste to prosím znovu.");
   }
+};
+
+// Funkce pro otevření modalu s playlisty
+const openPlaylistSelector = async () => {
+  // Nejprve načteme playlisty
+  await fetchUserPlaylists();
+  
+  // Zde by normálně otevíral modal, ale pro jednoduchost budeme zobrazovat
+  // přímo na stránce v rámci komponenty
+  isPlaylistSelectorOpen.value = true;
 };
 
 // Spuštění jukeboxu
@@ -796,6 +892,11 @@ const startJukebox = async () => {
     console.error("Chyba při spouštění jukeboxu:", error);
     alert("Nepodařilo se spustit jukebox. Zkuste to prosím znovu.");
   }
+};
+
+// Funkce pro zavření modalu s playlisty
+const closePlaylistSelector = () => {
+  isPlaylistSelectorOpen.value = false;
 };
 </script>
 
