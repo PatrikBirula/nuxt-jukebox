@@ -106,15 +106,17 @@ export default defineEventHandler(async (event) => {
       });
 
       // Vrátíme stav přehrávače
-      return {
+      return playerState || {
         success: true,
-        playerState
+        is_playing: false,
+        item: null
       };
     } catch (error) {
       // Pokud získání stavu selže, vrátíme prázdný stav
       return {
-        success: false,
-        playerState: null,
+        success: true,
+        is_playing: false,
+        item: null,
         message: "Nepodařilo se získat stav přehrávače. Je Spotify spuštěný a aktivní?"
       };
     }

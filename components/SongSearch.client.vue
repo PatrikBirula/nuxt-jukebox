@@ -11,6 +11,7 @@
             v-model="searchQuery" 
             placeholder="Hledat písničku..." 
             class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            @input="handleSearchInput"
             @keyup.enter="searchSongs"
           />
           <div v-if="isSearching" class="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -91,7 +92,7 @@
           v-for="(track, index) in queuedTracks" 
           :key="track.id" 
           class="bg-white p-2 rounded-lg shadow flex items-center space-x-3"
-          :class="{'border-l-4 border-purple-500': index === 0}"
+          :class="{'border-l-4 border-purple-500': isNextUpTrack(track, index)}"
         >
           <div class="flex-shrink-0 w-10 h-10">
             <img 
@@ -106,44 +107,185 @@
             <p class="text-sm font-medium text-gray-900 truncate">{{ track.name }}</p>
             <p class="text-xs text-gray-500 truncate">{{ track.artists.map(a => a.name).join(', ') }}</p>
           </div>
-          <div v-if="index === 0" class="text-xs text-purple-600 font-medium">
+          <div v-if="isNextUpTrack(track, index)" class="text-xs text-purple-600 font-medium">
             Následující
           </div>
         </div>
       </div>
+      
+      <!-- Ladící informace o frontě - zobrazí se pouze v režimu vývoje -->
+      <div v-if="isDevelopment" class="mt-4 p-3 bg-gray-100 rounded-lg text-xs">
+        <div class="mb-2">
+          <strong>Debug info:</strong>
+          <button 
+            @click="forceQueueRefresh" 
+            class="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs"
+          >
+            Aktualizovat frontu
+          </button>
+        </div>
+        <div><strong>Aktuální skladba:</strong> {{ currentPlayingTrackId || 'Žádná' }}</div>
+        <div><strong>Poslední přehraná:</strong> {{ lastPlayedTrackId || 'Žádná' }}</div>
+        <div><strong>Počet skladeb ve frontě:</strong> {{ queuedTracks.length }}</div>
+        <div><strong>Poslední aktualizace:</strong> {{ lastQueueUpdate }}</div>
+      </div>
+    </div>
+    
+    <!-- Prázdná fronta -->
+    <div v-else-if="attemptedQueueLoad" class="mt-6 text-center text-gray-500">
+      <p>Žádné skladby ve frontě</p>
+      <button 
+        @click="forceQueueRefresh" 
+        class="mt-2 px-3 py-1 bg-purple-600 text-white rounded-lg text-sm"
+      >
+        Aktualizovat frontu
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
 
 const props = defineProps({
   deviceId: {
     type: String,
     required: true
+  },
+  currentTrack: {
+    type: Object,
+    default: null
   }
 });
 
 const emit = defineEmits(['track-added', 'error']);
+
+// Použijeme globální queue store
+const { queueState, updateQueue } = useQueueStore();
+
+// Computed vlastnosti pro práci s frontou
+const queuedTracks = computed(() => queueState.value.tracks || []);
+const attemptedQueueLoad = computed(() => queueState.value.isLoaded);
+const lastQueueUpdate = computed(() => queueState.value.lastUpdated || 'Zatím neaktualizováno');
+const currentPlayingTrackId = computed(() => queueState.value.currentPlayingTrackId);
+const lastPlayedTrackId = computed(() => queueState.value.lastPlayedTrackId);
 
 // Stav
 const searchQuery = ref('');
 const searchResults = ref([]);
 const isSearching = ref(false);
 const error = ref('');
-const queuedTracks = ref([]);
 const isAddingToQueue = ref(false);
 const addingTrackId = ref(null);
+const queueRefreshInterval = ref(null);
+const searchTimeout = ref(null);
+const MIN_SEARCH_CHARS = 3;
+const DEBOUNCE_DELAY = 500; // ms
+const isDevelopment = process.env.NODE_ENV === 'development';
 
-// Načtení fronty při inicializaci
+// Načtení fronty při inicializaci a nastavení intervalu pro aktualizaci
 onMounted(async () => {
+  console.log('SongSearch komponenta inicializována');
   await fetchQueue();
+  setupQueueRefresh();
 });
+
+// Ukončení intervalů při odstranění komponenty
+onBeforeUnmount(() => {
+  console.log('SongSearch komponenta odstraněna');
+  
+  if (queueRefreshInterval.value) {
+    clearInterval(queueRefreshInterval.value);
+  }
+  
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value);
+  }
+});
+
+// Nastavení pravidelné aktualizace fronty
+const setupQueueRefresh = () => {
+  if (queueRefreshInterval.value) {
+    clearInterval(queueRefreshInterval.value);
+  }
+  
+  // Aktualizace fronty každých 5 sekund
+  queueRefreshInterval.value = setInterval(async () => {
+    await fetchQueue();
+  }, 5000);
+};
+
+// Načtení aktuální fronty
+const fetchQueue = async () => {
+  try {
+    if (!props.deviceId) return;
+    
+    const response = await fetch(`/api/spotify/queue?deviceId=${props.deviceId}`);
+    
+    if (!response.ok) {
+      console.error('Chyba při načítání fronty:', response.status);
+      return;
+    }
+    
+    const data = await response.json();
+    
+    // Nastavení aktuálně přehrávané skladby a aktualizace fronty v globálním store
+    if (data.currently_playing && data.currently_playing.id) {
+      updateQueue(
+        data.queue && Array.isArray(data.queue) ? data.queue : [],
+        data.currently_playing.id
+      );
+    } else {
+      updateQueue(
+        data.queue && Array.isArray(data.queue) ? data.queue : []
+      );
+    }
+  } catch (err) {
+    console.error('Chyba při načítání fronty:', err);
+  }
+};
+
+// Ruční aktualizace fronty
+const forceQueueRefresh = async () => {
+  await fetchQueue();
+};
+
+// Debounced vyhledávání při zadávání textu
+const handleSearchInput = () => {
+  // Zrušíme předchozí timeout, pokud existuje
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value);
+  }
+  
+  // Kontrola minimální délky pro vyhledávání
+  if (searchQuery.value.length >= MIN_SEARCH_CHARS) {
+    // Nastavíme nový timeout pro vyhledávání s debounce
+    searchTimeout.value = setTimeout(() => {
+      searchSongs();
+    }, DEBOUNCE_DELAY);
+  } else if (searchQuery.value.length === 0) {
+    // Pokud je pole prázdné, vyčistíme výsledky
+    searchResults.value = [];
+  }
+};
 
 // Vyhledávání písniček
 const searchSongs = async () => {
-  if (!searchQuery.value || isSearching.value) return;
+  // Zrušíme případný existující timeout
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value);
+    searchTimeout.value = null;
+  }
+  
+  // Kontrola minimální délky pro vyhledávání
+  if (searchQuery.value.length < MIN_SEARCH_CHARS) {
+    if (searchQuery.value.length > 0) {
+      error.value = `Pro vyhledávání zadejte alespoň ${MIN_SEARCH_CHARS} znaky`;
+    }
+    return;
+  }
+  
+  if (isSearching.value) return;
   
   try {
     isSearching.value = true;
@@ -186,7 +328,12 @@ const addToQueue = async (track) => {
       },
       body: JSON.stringify({
         trackUri: track.uri,
-        deviceId: props.deviceId
+        deviceId: props.deviceId,
+        trackInfo: {
+          id: track.id,
+          name: track.name,
+          artist: track.artists.map(a => a.name).join(', ')
+        }
       })
     });
     
@@ -196,11 +343,8 @@ const addToQueue = async (track) => {
       throw new Error(data.message || 'Nepodařilo se přidat skladbu do fronty');
     }
     
-    // Přidáme track do naší lokální fronty
-    const isAlreadyInQueue = queuedTracks.value.some(t => t.id === track.id);
-    if (!isAlreadyInQueue) {
-      queuedTracks.value.push(track);
-    }
+    // Po přidání skladby aktualizujeme frontu
+    await fetchQueue();
     
     // Informujeme rodiče
     emit('track-added', track);
@@ -219,22 +363,13 @@ const addToQueue = async (track) => {
   }
 };
 
-// Načtení aktuální fronty
-const fetchQueue = async () => {
-  try {
-    const response = await fetch(`/api/spotify/queue?deviceId=${props.deviceId}`);
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Nepodařilo se načíst frontu');
-    }
-    
-    queuedTracks.value = data.queue || [];
-  } catch (err) {
-    console.error('Chyba při načítání fronty:', err);
-    // Pouze logujeme, nezobrazujeme uživateli chybu při inicializaci
+// Sledování změn aktuální skladby
+watch(() => props.currentTrack, (newTrack) => {
+  if (newTrack) {
+    // Aktualizujeme frontu
+    fetchQueue();
   }
-};
+}, { immediate: true });
 
 // Aktualizace fronty při změně deviceId
 watch(() => props.deviceId, async (newDeviceId) => {
@@ -242,6 +377,12 @@ watch(() => props.deviceId, async (newDeviceId) => {
     await fetchQueue();
   }
 });
+
+// Úprava komponenty, aby správně zobrazila, zda je skladba v seznamu ta, která bude následovat
+const isNextUpTrack = (track, index) => {
+  // Skladba je následující, pokud je první ve frontě
+  return index === 0;
+};
 </script>
 
 <style scoped>
@@ -249,4 +390,4 @@ watch(() => props.deviceId, async (newDeviceId) => {
   max-width: 600px;
   margin: 0 auto;
 }
-</style> 
+</style>

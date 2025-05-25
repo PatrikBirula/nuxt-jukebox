@@ -64,6 +64,35 @@ export default defineEventHandler(async (event) => {
       }
     });
     
+    // Přidáme skladbu do databáze jako karaoke track
+    try {
+      await (prisma as any).karaokeTrack.upsert({
+        where: {
+          trackUri_userId: {
+            trackUri: body.trackUri,
+            userId: session.user.id
+          }
+        },
+        update: {
+          trackName: body.trackInfo?.name,
+          artistName: body.trackInfo?.artist,
+          isPlayed: false, // Nastavíme jako nepřehranou i pokud již existuje
+          addedAt: new Date() // Aktualizujeme čas přidání
+        },
+        create: {
+          trackUri: body.trackUri,
+          trackName: body.trackInfo?.name,
+          artistName: body.trackInfo?.artist,
+          userId: session.user.id
+        }
+      });
+      
+      console.log(`Přidána karaoke skladba do fronty: ${body.trackInfo?.name || "neznámá skladba"} (URI: ${body.trackUri})`);
+    } catch (dbError) {
+      console.error("Chyba při ukládání karaoke skladby do databáze:", dbError);
+      // Pokračujeme, i když se nepodaří uložit do databáze
+    }
+    
     return {
       success: true,
       message: "Skladba byla přidána do fronty"

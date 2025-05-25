@@ -238,10 +238,14 @@ const createPlayer = async () => {
       // Ukládáme aktuální stav přehrávání
       savePlaybackState(state);
       
+      // Předáváme kompletní informace o aktuálním stavu
       emit('play-state-changed', {
         isPlaying: isPlaying.value,
         currentTrack: currentTrack.value,
-        isKaraokeSong: isKaraokeSong.value
+        isKaraokeSong: isKaraokeSong.value,
+        position: position.value,
+        duration: duration.value,
+        track_window: state.track_window // Přidáváme celé track_window pro lepší přehled o frontě
       });
     });
     
@@ -339,14 +343,14 @@ const checkPreviousPlaybackState = async (deviceId) => {
       if (offsetTooOld || !playbackState.trackUri) {
         // Pokud je pozice příliš stará nebo nemáme URI skladby, přehraj následující skladbu
         if (playbackState.nextTrackUri) {
-          await playSpecificTrack(deviceId, props.playlist.id, playbackState.nextTrackUri, 0);
+          await playTrack(deviceId, props.playlist.id, playbackState.nextTrackUri, 0);
         } else {
           // Pokud nemáme ani následující skladbu, začni od začátku playlistu s offsetem
           await playPlaylist(deviceId, props.playlist.id, playbackState.trackIndex + 1);
         }
       } else {
         // Pokračuj ve stejné skladbě od uložené pozice
-        await playSpecificTrack(deviceId, props.playlist.id, playbackState.trackUri, offsetMs);
+        await playTrack(deviceId, props.playlist.id, playbackState.trackUri, offsetMs);
       }
     } catch (err) {
       console.error('Chyba při pokračování v přehrávání:', err);
@@ -358,28 +362,54 @@ const checkPreviousPlaybackState = async (deviceId) => {
   }
 };
 
-// Přehrání konkrétní skladby v playlistu
-const playSpecificTrack = async (deviceId, playlistId, trackUri, positionMs = 0) => {
+// Přehrání konkrétní skladby
+const playTrack = async (deviceId, playlistId, trackUri, positionMs = 0) => {
   if (!playerReady.value) return;
   
-  try {
-    await fetch('/api/spotify/play', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        playlistId,
-        deviceId,
-        trackUri,
-        positionMs
-      }),
-    });
-  } catch (err) {
-    console.error('Chyba při přehrávání konkrétní skladby:', err);
-    error.value = "Nepodařilo se přehrát konkrétní skladbu";
-    throw err;
-  }
+  let attempts = 0;
+  const maxAttempts = 3;
+  const retryDelay = 2000; // 2 sekundy
+  
+  const attemptPlay = async () => {
+    try {
+      console.log(`Pokus ${attempts + 1} o přehrání skladby ${trackUri} na zařízení ${deviceId}`);
+      
+      const response = await fetch('/api/spotify/play', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          playlistId,
+          deviceId,
+          trackUri,
+          positionMs
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`HTTP error ${response.status}: ${errorData.message || response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Skladba úspěšně spuštěna:', data);
+      return data;
+    } catch (err) {
+      console.error('Chyba při přehrávání konkrétní skladby:', err);
+      
+      if (attempts < maxAttempts) {
+        attempts++;
+        console.log(`Opakuji pokus za ${retryDelay/1000} sekund...`);
+        return new Promise(resolve => setTimeout(() => resolve(attemptPlay()), retryDelay));
+      }
+      
+      error.value = "Nepodařilo se přehrát skladbu po několika pokusech";
+      throw err;
+    }
+  };
+  
+  return attemptPlay();
 };
 
 // Nastavení intervalu pro aktualizaci pozice přehrávání
@@ -411,23 +441,49 @@ const togglePlay = async () => {
 const playPlaylist = async (deviceId, playlistId, offset = 0) => {
   if (!playerReady.value) return;
   
-  try {
-    await fetch('/api/spotify/play', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        playlistId,
-        deviceId,
-        offset
-      }),
-    });
-  } catch (err) {
-    console.error('Chyba při přehrávání playlistu:', err);
-    error.value = "Nepodařilo se přehrát playlist";
-    throw err;
-  }
+  let attempts = 0;
+  const maxAttempts = 3;
+  const retryDelay = 2000; // 2 sekundy
+  
+  const attemptPlay = async () => {
+    try {
+      console.log(`Pokus ${attempts + 1} o přehrání playlistu ${playlistId} na zařízení ${deviceId}`);
+      
+      const response = await fetch('/api/spotify/play', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          playlistId,
+          deviceId,
+          offset
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`HTTP error ${response.status}: ${errorData.message || response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Playlist úspěšně spuštěn:', data);
+      return data;
+    } catch (err) {
+      console.error('Chyba při přehrávání playlistu:', err);
+      
+      if (attempts < maxAttempts) {
+        attempts++;
+        console.log(`Opakuji pokus za ${retryDelay/1000} sekund...`);
+        return new Promise(resolve => setTimeout(() => resolve(attemptPlay()), retryDelay));
+      }
+      
+      error.value = "Nepodařilo se přehrát playlist po několika pokusech";
+      throw err;
+    }
+  };
+  
+  return attemptPlay();
 };
 
 // Funkce pro zamknutí obrazovky (zabránění spánku)
@@ -477,13 +533,18 @@ const checkWakeLockSupport = () => {
 const checkIfKaraokeSong = async (trackUri) => {
   if (!trackUri) return false;
   
-  // Pro jednoduchost - pokud máme frontu a první skladba v ní má stejné URI jako aktuální skladba
-  // Poznámka: V reálné implementaci by se to řešilo přes API endpoint, který by vracel informaci o původu skladby
   try {
-    await fetchQueuedTracks();
-    if (queuedTracks.value.length > 0 && queuedTracks.value[0].uri === trackUri) {
-      return true;
+    // Použijeme náš endpoint pro zjištění, zda je skladba karaoke
+    const response = await fetch(`/api/spotify/is-karaoke?uri=${encodeURIComponent(trackUri)}`);
+    
+    if (!response.ok) {
+      console.error('Chyba při kontrole karaoke skladby:', response.status);
+      return false;
     }
+    
+    const data = await response.json();
+    
+    return data.isKaraoke === true;
   } catch (err) {
     console.error('Chyba při kontrole karaoke skladby:', err);
   }
@@ -549,6 +610,38 @@ onBeforeUnmount(() => {
 defineExpose({
   playPlaylist
 });
+
+// Přehrání další skladby
+const playNextTrack = async () => {
+  if (!player.value || !playbackState.nextTrackUri) return;
+  
+  try {
+    const deviceId = player.value.deviceID;
+    
+    if (deviceId && props.playlist) {
+      await playTrack(deviceId, props.playlist.id, playbackState.nextTrackUri, 0);
+    }
+  } catch (err) {
+    console.error('Chyba při přehrávání další skladby:', err);
+  }
+};
+
+// Obnovení přehrávání po přerušení
+const resumePlayback = async () => {
+  if (!player.value || !playbackState.trackUri) return;
+  
+  const offsetMs = position.value || 0;
+  
+  try {
+    const deviceId = player.value.deviceID;
+    
+    if (deviceId && props.playlist) {
+      await playTrack(deviceId, props.playlist.id, playbackState.trackUri, offsetMs);
+    }
+  } catch (err) {
+    console.error('Chyba při obnovení přehrávání:', err);
+  }
+};
 </script>
 
 <style scoped>
