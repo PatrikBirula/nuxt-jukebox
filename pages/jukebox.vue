@@ -1,14 +1,15 @@
 <template>
-  <div>
-    <div v-if="isLoading" class="container mx-auto px-4 py-16 flex items-center justify-center">
+  <div class="min-h-screen text-white relative overflow-hidden">
+    <Background />
+    <div v-if="isLoading" class="container mx-auto px-4 py-16 flex items-center justify-center relative z-10">
       <div class="text-center">
         <p class="text-xl">Načítání jukeboxu...</p>
       </div>
     </div>
 
-    <div v-else class="container mx-auto px-4 py-8">
-      <div class="bg-white rounded-lg shadow-lg p-8">
-        <h1 class="text-3xl font-bold text-center mb-6">Spotify Jukebox</h1>
+    <div v-else class="container mx-auto px-4 py-8 relative z-10">
+      <div class="bg-black/70 backdrop-blur-md rounded-lg shadow-lg p-8 border border-purple-500/30">
+        <h1 class="text-3xl font-bold text-center mb-6 text-purple-300">Spotify Jukebox</h1>
         
         <div v-if="!isAuthenticated" class="text-center py-8">
           <p class="text-xl mb-4">Pro přístup k jukeboxu se prosím přihlaste</p>
@@ -52,11 +53,11 @@
             
             <!-- Playlist info -->
             <div class="mt-8 text-center" v-if="playlistInfo">
-              <p class="text-gray-600">Playlist: {{ playlistInfo.name }}</p>
+              <p class="text-gray-400">Playlist: {{ playlistInfo.name }}</p>
             </div>
 
             <!-- Komponenta pro vyhledávání skladeb -->
-            <div class="mt-10 border-t pt-8 w-full">
+            <div class="mt-10 border-t border-purple-500/30 pt-8 w-full">
               <ClientOnly>
                 <SongSearch 
                   v-if="spotifyDeviceId" 
@@ -68,13 +69,13 @@
                 />
                 
                 <template #fallback>
-                  <div class="text-center text-gray-600">
+                  <div class="text-center text-gray-400">
                     Načítání vyhledávače...
                   </div>
                 </template>
               </ClientOnly>
               
-              <div v-if="!spotifyDeviceId" class="text-center text-gray-600">
+              <div v-if="!spotifyDeviceId" class="text-center text-gray-400">
                 Načítání přehrávače...
               </div>
             </div>
@@ -89,6 +90,11 @@
 import { ref, onMounted, onBeforeUnmount, computed } from "vue";
 import SpotifyPlayer from "~/components/SpotifyPlayer.client.vue";
 import SongSearch from "~/components/SongSearch.client.vue";
+
+// Nastavíme layout pro tuto stránku
+definePageMeta({
+  layout: "themed"
+});
 
 // Základní stav
 const isLoading = ref(true);
@@ -320,8 +326,4 @@ onBeforeUnmount(() => {
     clearInterval(tokenRefreshInterval.value);
   }
 });
-</script>
-
-<style scoped>
-/* Zde můžete přidat vlastní styly pro jukebox */
-</style> 
+</script> 
